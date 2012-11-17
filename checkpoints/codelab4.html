@@ -1,0 +1,374 @@
+<!-- Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License
+ -->
+
+<html>
+
+<link rel="stylesheet" type="text/css" href="https://{{ hostname }}/static/codelab/styles/style.css" />
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
+<script src='https://{{ hostname }}/static/codelab/js/graphics.js'></script>
+
+<div id='bridge-selection'>
+<center>
+   <table id='captain'>
+      <tr>
+	<td class='captain_title'>
+	  <input type='button'
+		 id='be_the_captain'
+		 onClick='onBeTheCaptainClicked()'
+		 value='Be the Captain'></input>
+	</td>
+      </tr>
+      <tr>
+	<td>
+	  <img id='captain_photo' src='https://hangouts-codelab.appspot.com/static/codelab/graphics/photo.png' width='48' height='48'/>
+	</td>
+      </tr>
+   </table>
+</center>
+</div>
+
+<center>
+<p>
+  <input type="checkbox" id="ready" onClick='onReadyClicked()'/><label for="check">Ready?</label>
+</p>
+</center>
+
+<div id='main-bridge'>
+  <center> 
+    <div id='starfield'>
+      <canvas id="canvas" width="800"
+	      syte='background-color="#7c8587"'
+	      height="300">Your browser isn't HTML5 Canvas compliant'</canvas>
+      <input style='-webkit-appearance: slider-vertical; height:250px; width:30px'id="warp"
+	     type="range" min="-1.5" max="1.5" step="0.1"
+	     value='1.0'
+	     onChange="onWarpMouseMoved(this.value)"
+	     onMouseDown="onWarpMouseDown(this.value)"
+	     onMouseUp="onWarpMouseUp(this.value)"
+	     />Warp<span id='warpvalue'></p> </center>
+  </div>
+  <div id='otherControls'>
+    <input type='button'
+	   id='medical_button'
+	   onClick='onMedicalClicked()'
+	   value='I need a doctor'></input>
+    <span id='email'></span>
+  </center>
+</div>
+
+<!-- Standard boilerplate to start hangouts.  Without these, you Hangout will not start. -->
+<script src="//hangoutsapi.talkgadget.google.com/talkgadget/apps/gadgets/js/rpc.js"></script>
+<script src="//hangoutsapi.talkgadget.google.com/hangouts/api/hangout.js?v=1.1"></script>
+
+<!-- CODELAB!  ALL YOUR CODE GOES BELOW THIS POINT! -->
+<script>
+
+function onReadyClicked() {
+  gapi.hangout.data.setValue(gapi.hangout.getParticipantId() +
+      'ready', '' + document.getElementById('ready').checked);
+}
+
+
+function updateReadiness() {
+  var participants = gapi.hangout.getEnabledParticipants();
+  var state = gapi.hangout.data.getState();
+
+  var readyCount = 0;
+
+  // Update screen
+  for (index in participants) {
+    var party = participants[index];
+    var isReady = state[party.id + 'ready'] == 'true';
+
+    if (isReady ) {
+      // Avoid flicker
+      if (gapi.hangout.av.getAvatar(party.id) == null) {
+        gapi.hangout.av.setAvatar(party.id,
+            'https://hangouts-codelab.appspot.com/static/codelab/graphics/checkbox.png');
+      }
+      readyCount++
+
+    }
+    else
+    {
+      gapi.hangout.av.clearAvatar(party.id);
+    }
+  }
+
+  if (gapi.hangout.data.getValue('captain') == gapi.hangout.getParticipantId()) 
+  {
+    // I'm the captain!
+    if (readyCount == gapi.hangout.getEnabledParticipants().length)
+    {
+	  console.log('I am ready');
+      gapi.hangout.data.setValue('engaged', 'true');
+    }
+  }
+}
+
+function onMedicalClicked() {
+  playSound();
+}
+
+// The sound you can play through the plugin
+var doctorSound;
+
+/** Allocates a sound resource, assigns it to a global variable.*/
+function createSoundResources() {
+  doctorSound = gapi.hangout.av.effects.createAudioResource(
+      'https://hangouts-codelab.appspot.com/static/codelab/sounds/doctor.wav');
+}
+
+// Play a noise-cancelled sound throught the plugin
+function playSound() {
+  doctorSound.play();
+}
+
+// A variable for your visual overlays
+var overlays = {};
+
+/* Creates an arbitrary text Overlay.
+ * @pararm {string} string the text string to be displayed
+ * @return {Overlay} a new overlay.
+ */
+function createTextOverlay(string) {
+    // Create a canvas to draw on
+    var canvas = document.createElement('canvas');
+    canvas.setAttribute('width', 166);
+    canvas.setAttribute('height', 100);
+    
+    var context = canvas.getContext('2d');
+    
+    // Draw background
+    context.fillStyle = '#BBB';
+    context.fillRect(0, 0, 166, 50);
+
+    // Draw text
+    context.font = '32pt Impact';
+    context.lineWidth = 6;
+    context.lineStyle = '#000';
+    context.fillStyle = '#FFF';
+    context.fillColor = '#ffff00';
+    context.fillColor = '#ffff00';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    context.strokeText(string, canvas.width / 2, canvas.height / 2);
+    context.fillText(string, canvas.width / 2, canvas.height / 2);
+    
+    // Create the image offset
+    var textIr = gapi.hangout.av.effects.createImageResource(
+	canvas.toDataURL());
+
+    overlays[string] = textIr.createOverlay(
+	{'scale':
+	 {'magnitude': 0.5,
+          'reference': gapi.hangout.av.effects.ScaleReference.WIDTH},
+	 'position': {y: 0.25, x: 0}});
+}
+
+function createOverlays() {
+
+    var faceIr =
+	gapi.hangout.av.effects.createImageResource(
+	    'https://hangouts-codelab.appspot.com/static/codelab/graphics/cap-face.png'
+	);
+
+    var chinIr =
+	gapi.hangout.av.effects.createImageResource(
+	    'https://hangouts-codelab.appspot.com/static/codelab/graphics/cap-chin.png'
+	);
+
+    overlays['captain-face'] = faceIr.createFaceTrackingOverlay(
+	{trackingFeature: gapi.hangout.av.effects.FaceTrackingFeature.NOSE_ROOT,
+	 scale: 0.65,
+	 offset: {y: -0.25, x: 0},
+	 rotateWithFace: true,
+	 scaleWithFace: true});
+
+    overlays['captain-chin'] = chinIr.createFaceTrackingOverlay(
+	{trackingFeature: gapi.hangout.av.effects.FaceTrackingFeature.LOWER_LIP,
+	 offset: {y: 0.2, x: 0},
+	 scale: 0.65,
+	 rotateWithFace: true,
+	 scaleWithFace: true});
+
+   createTextOverlay('expendable');
+}
+
+function onFaceMotionChanged(event) {
+  try {
+    if (event.hasFace) {
+        setWarpTarget(event.mouthCenter.x * canvasWidth + canvasWidth / 2,
+              event.mouthCenter.y * canvasHeight + canvasHeight / 2);
+    }
+  } catch (e) {
+    console.log('ERROR: onFaceMotionChanged');
+    console.log(e.stack);
+  }
+}
+
+/** Reads parameters off the iframe's URI
+ @param {String} paramName the name of the parameter.
+ @return {String} value of parameter.
+ */
+function getParameter(paramName) {
+  var searchString = window.location.search.substring(1),
+  i, val, params = searchString.split('&');
+
+  for (i = 0; i < params.length; i++) {
+    val = params[i].split('=');
+    if (val[0] == paramName) {
+      return unescape(val[1]);
+    }
+  }
+  return null;
+}
+
+// Retrieves the token
+function generateToken() {
+  return getParameter('token');
+}
+
+function verifyToken() {
+    $.getJSON(
+    'https://www.googleapis.com/oauth2/v1/tokeninfo',
+    {access_token: generateToken()},
+    function(data) { document.getElementById('email').innerHTML =
+             '<b>' + data.email + '<b/>' });
+}
+
+/** Any code that will be executed on startup goes here! */
+function init() {
+
+  gapi.hangout.av.effects.onFaceTrackingDataChanged.add(onFaceMotionChanged);
+  gapi.hangout.data.onMessageReceived.add(onMessageRecieved);
+  gapi.hangout.data.onStateChanged.add(onStateChanged);
+  verifyToken();
+  createOverlays();
+    createSoundResources();
+
+  onStateChanged();
+
+  console.log('App started.');
+}
+
+function onBeTheCaptainClicked() {
+  gapi.hangout.data.setValue('captain', gapi.hangout.getParticipantId());
+}
+
+// Slider functions
+function onWarpMouseDown(val) {
+  gapi.hangout.data.setValue('dragging', gapi.hangout.getParticipantId());
+}
+
+function onWarpMouseUp(val) {
+  // Remove the drag owner, and set the warp factor to the current value
+  gapi.hangout.data.clearValue('dragging');
+}
+
+function onWarpMouseMoved(val) {
+  // Called when warp slider moves
+  gapi.hangout.data.sendMessage(JSON.stringify(['warp', val]));
+
+  // Note that you will NOT get the message sent back to you,
+  // so you need to update your own UI as well.
+  if (gapi.hangout.data.getValue('dragging') ==
+      gapi.hangout.getParticipantId() ||
+          !gapi.hangout.data.getValue('dragging'))
+  {
+    setWarpFactor(val);
+  }
+}
+
+function onMessageRecieved(event) {
+  try {
+    var val = JSON.parse(event.message);
+
+    if (gapi.hangout.getParticipantId() == event.senderId) {
+        // Only the owner can set this
+        setWarpFactor(val[1]);
+    }
+  } catch (e) {
+    console.log(e.stack);
+  }
+}
+
+/** Base onStateChanged. */
+function onStateChanged(event) {
+  try {
+
+    console.log('state changed!');
+    if (gapi.hangout.data.getState().engaged == 'true'  && !initialized) {
+       initStarfield();
+    }
+
+    updateReadiness();
+    // Do we have an active captain -- that is, a captain who is
+    // still in the hangout?
+    var ourCaptain = gapi.hangout.getParticipantById(
+        gapi.hangout.data.getValue('captain'));
+
+    if (ourCaptain) {
+      document.getElementById('captain_photo').src = ourCaptain.person.image.url;
+    } else {
+      document.getElementById('captain_photo').src =
+          'https://hangouts-codelab.appspot.com/static/codelab/graphics/photo.png';
+    }
+
+
+  var captain = gapi.hangout.data.getValue('captain');
+
+  var isACaptain = gapi.hangout.getParticipantById(captain);
+  var iamcaptain = gapi.hangout.getParticipantId() == captain;
+
+  overlays['captain-face'].setVisible(iamcaptain);
+  overlays['captain-chin'].setVisible(iamcaptain);
+
+  overlays['expendable'].setVisible(!iamcaptain && isACaptain);
+
+
+    $('#ready').prop('checked',
+        gapi.hangout.data.getValue(gapi.hangout.getParticipantId() +
+            'ready') == 'true');
+
+
+  } catch (e) {
+    console.log(e.stack);
+  }
+}
+
+function initGadget() {
+    // When API is ready...
+    gapi.hangout.onApiReady.add(
+	function(eventObj) {
+	    try {
+		init();
+	    } catch (e) {
+		console.log("Startup");
+		console.log(e.stack);
+	    }
+	}
+    );
+}
+
+
+</script>
+
+<!-- This loads the minimalist Google API client; authentication only!
+     It will then call the initGadget() function on startup. -->
+<script src="https://apis.google.com/js/api.js"></script>
+<script>
+  gapi.load('auth', initGadget);
+</script>
+
+</html>
